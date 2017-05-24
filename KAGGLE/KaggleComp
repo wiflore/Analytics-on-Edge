@@ -1,0 +1,128 @@
+# KAGGLE COMPETITION - GETTING STARTED
+
+library(randomForest)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+library(tm)
+library(SnowballC)
+library(ROCR)
+library(mice)
+
+Sys.setlocale("LC_ALL", "C")
+
+
+
+# This script file is intended to help you get started on the Kaggle platform, and to show you how to make a submission to the competition.
+
+
+# Let's start by reading the data into R
+# Make sure you have downloaded these files from the Kaggle website, and have navigated to the directory where you saved the files on your computer
+setwd("~/Dropbox/MIT Analytics/KaggleComp")
+
+train = read.csv("train2016.csv")
+test = read.csv("test2016.csv")
+
+test$Party =  NA
+train <- rbind(train, test)
+
+nrow(train)
+summary(train)
+str(train)
+table(train$Party)
+
+imputed_Data <- mice(train, m=5, maxit = 50, method = 'pmm', seed = 500)
+complete <- complete(imputed_Data,1)
+imputed_test <- mice(test, m=5, maxit = 50, method = 'pmm', seed = 500)
+completetest <- complete(imputed_test,1)
+
+
+# We will just create a simple logistic regression model, to predict Party using all other variables in the dataset, except for the user ID:
+
+SimpleMod = glm(Party ~ . -USER_ID, data=complete, family=binomial)
+CARTMod = rpart(Party ~ . -USER_ID, data=complete, method="class")
+RFMod = randomForest(Party ~ . -USER_ID, data = complete)
+
+
+predLog = predict(SimpleMod, data=complete, type = "response") 
+predCART = predict(CARTMod , data=complete)[,2]
+predRF = predict(RFMod, data=complete, type = "prob")[,2] 
+length(predLog)
+length(predCART)
+length(predRF)
+
+prp(CARTMod)
+
+#What is the training set accuracy 
+table(complete$Party, predLog >= 0.5)
+table(complete$Party, predCART >= 0.5)
+table(complete$Party, predRF >= 0.5)
+
+acc = table(complete$Party, predLog >= 0.5)
+(acc[1,1]+ acc[2,2])/(nrow(complete))
+acc = table(complete$Party, predCART >= 0.5)
+(acc[1,1]+ acc[2,2])/(nrow(complete))
+acc = table(complete$Party, predRF >= 0.5)
+(acc[1,1]+ acc[2,2])/(nrow(complete))
+
+#ROC AUC
+predRocLog = prediction(predLog, complete$Party)
+as.numeric(performance(predRocLog, "auc")@y.values)
+
+#What is the training set accuracy CART
+
+predRocLog = prediction(predCART, complete$Party)
+as.numeric(performance(predRocLog, "auc")@y.values)
+
+#What is the training set accuracy Forest
+
+predRocLog = prediction(predRF, complete$Party)
+as.numeric(performance(predRocLog, "auc")@y.values)
+
+# And then make predictions on the test set:
+
+summary(SimpleMod)
+
+#multicolinariny threholds
+
+
+# You should upload the submission "SubmissionSimpleLog.csv" on the Kaggle website to use this as a submission to the competition
+
+
+threshold = 0.5
+# However, you can submit the file on Kaggle to see how well the model performs. You can make up to 5 submissions per day, so don't hesitate to just upload a solution to see how you did.
+# Let's prepare a submission file for Kaggle (for more about this, see the "Evaluation" page on the competition site):
+PredTest = predict(SimpleMod, newdata=completetest, type="response")
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = completetest$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleLogF.csv", row.names=FALSE)
+
+
+predTest = predict(CARTMod , data=completetest)[,2]
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = completetest$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleCartF.csv", row.names=FALSE)
+
+
+predTest = predict(RFMod, data=completetest, type = "prob")[,2] 
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = completetest$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleRFF.csv", row.names=FALSE)
+
+PredTest = predict(SimpleMod2, newdata=test, type="response")
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = test$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleLog2.csv", row.names=FALSE)
+
+
+predTest = predict(CARTMod2, data=test)[,2]
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = test$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleCART2.csv", row.names=FALSE)
+
+
+predTest = predict(RFMod2, data=test, type = "prob")[,2] 
+PredTestLabels = as.factor(ifelse(PredTest<threshold, "Democrat", "Republican"))
+MySubmission = data.frame(USER_ID = test$USER_ID, Predictions = PredTestLabels)
+write.csv(MySubmission, "SubmissionSimpleRF2.csv", row.names=FALSE)
